@@ -1,6 +1,16 @@
 @import "tailwindcss";
 
 :root {
+  /* Dark Mode Dashboard Color Palette - Issue #900 */
+  --bg-primary: #0B1120;
+  --bg-secondary: #1E293B;
+  --bg-card: #1E293B;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --accent-primary: #60A5FA;
+  --accent-secondary: #818CF8;
+  --border: #334155;
+
   /* Design tokens */
   --color-primary: #7c3aed;
   --color-primary-hover: #6d28d9;
@@ -46,15 +56,11 @@
   --accent: var(--color-primary);
   --accent-hover: var(--color-primary-hover);
   --muted: var(--color-surface-1);
-  --border: var(--color-border);
 
   /* SPEC.md design tokens — Profile page, layout shell, etc. */
-  --bg-primary: var(--color-bg);
-  --bg-secondary: var(--color-surface-1);
   --bg-tertiary: var(--color-surface-2);
   --accent-coral: #ff6b5b;
   --accent-teal: #4ecdc4;
-  --text-primary: var(--color-text-primary);
   --text-muted: var(--color-text-secondary);
   --success: var(--color-success);
   --error: var(--color-error);
@@ -71,6 +77,15 @@
 }
 
 [data-theme="dark"] {
+  --bg-primary: #0B1120;
+  --bg-secondary: #1E293B;
+  --bg-card: #1E293B;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --accent-primary: #60A5FA;
+  --accent-secondary: #818CF8;
+  --border: #334155;
+
   --color-bg: #0f172a;
   --color-surface-1: #1e293b;
   --color-surface-2: #334155;
@@ -84,11 +99,7 @@
   --background: var(--color-bg);
   --foreground: var(--color-text-primary);
   --muted: var(--color-surface-1);
-  --border: var(--color-border);
-  --bg-primary: var(--color-bg);
-  --bg-secondary: var(--color-surface-1);
   --bg-tertiary: var(--color-surface-2);
-  --text-primary: var(--color-text-primary);
   --text-muted: var(--color-text-secondary);
   --glass: rgba(30, 41, 59, 0.8);
   color-scheme: dark;
