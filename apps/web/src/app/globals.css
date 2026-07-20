@@ -283,3 +283,53 @@ body {
     display: none !important;
   }
 }
+
+/* Dashboard Masonry Grid & Post Cards */
+.dashboard-masonry-grid {
+  column-count: 3;
+  column-gap: 20px;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-masonry-grid {
+    column-count: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-masonry-grid {
+    column-count: 1;
+  }
+}
+
+.dashboard-post-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.4);
+  border-color: var(--accent-primary, #60A5FA) !important;
+}
+
+.skeleton-card {
+  background: var(--bg-card, #1E293B);
+  border: 1px solid var(--border, #334155);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  break-inside: avoid;
+}
+
+.skeleton-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #1E293B 25%, #334155 50%, #1E293B 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #1E293B 25%, #334155 50%, #1E293B 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
