@@ -277,6 +277,9 @@ body {
   width: 100%;
 }
 
-.btn-primary:hover {
-  background: var(--accent-hover);
+/* Responsive: Hide right sidebar on <1280px */
+@media (max-width: 1279px) {
+  .dashboard-right-sidebar {
+    display: none !important;
+  }
 }
