@@ -9,6 +9,8 @@ import { useNotificationsContext } from "@/contexts/NotificationsContext";
 import { PostComposeModal } from "./PostComposeModal";
 import { useKeyboardShortcutsContext } from "@/contexts/KeyboardShortcutsContext";
 
+import { Logo } from "@/components/branding/Logo";
+
 /** Truncates a Stellar address to G…XXXX format */
 function truncateAddress(address: string): string {
   return `${address.slice(0, 4)}…${address.slice(-4)}`;
@@ -89,13 +91,7 @@ export function NavBar() {
       )}
       <nav className="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:py-3">
         {/* Brand */}
-        <a
-          href="/"
-          className="text-xl font-extrabold tracking-tight text-violet-500 hover:text-violet-400 transition-colors"
-          aria-label="Linkora home"
-        >
-          Linkora
-        </a>
+        <Logo variant="full" size="md" />
 
         <SearchBar
           onSearch={(query) => router.push(`/search?q=${encodeURIComponent(query)}`)}
