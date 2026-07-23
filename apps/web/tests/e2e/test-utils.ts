@@ -13,6 +13,7 @@ export async function injectWalletMock(page: Page): Promise<void> {
       getPublicKey: () => Promise.resolve(address),
       isConnected: () => Promise.resolve(true),
     };
+    window.localStorage.setItem("linkora_guided_tour_dismissed", "true");
   }, MOCK_ADDRESS);
 }
 

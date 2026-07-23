@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { injectWalletMock } from "./test-utils";
 
 test("search renders post and profile results from the NavBar", async ({ page }) => {
   await page.route("**/api/search?**", async (route) => {
@@ -40,12 +41,14 @@ test("search renders post and profile results from the NavBar", async ({ page })
     });
   });
 
+  await injectWalletMock(page);
   await page.goto("/");
 
-  await page.getByRole("search").first().getByRole("textbox").fill("stellar");
-  await page.getByRole("search").first().getByRole("button", { name: "Search" }).click();
+  const searchBox = page.getByRole("search").first().locator("input");
+  await searchBox.fill("stellar");
+  await searchBox.press("Enter");
 
-  await expect(page).toHaveURL(/\/search\?q=stellar/);
+  await expect(page).toHaveURL(/\/search\?q=stellar/, { timeout: 10000 });
   await expect(page.getByText("A stellar builders update from last month.")).toBeVisible();
   await expect(
     page

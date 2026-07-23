@@ -49,9 +49,21 @@ export class RelayAuthError extends Error {
   }
 }
 
+interface WSInstance {
+  readyState: number;
+  send: (data: string) => void;
+  onmessage: ((e: { data: string }) => void) | null;
+  onclose: (() => void) | null;
+}
+
+interface WSConstructor {
+  new (url: string): WSInstance;
+  OPEN: number;
+}
+
 export class RelayClient {
   private baseUrl: string;
-  private ws: WebSocket | null = null;
+  private ws: WSInstance | null = null;
   private messageListeners: Set<(payload: Record<string, unknown>) => void> = new Set();
 
   constructor(baseUrl: string) {
@@ -64,16 +76,20 @@ export class RelayClient {
   connectWs(address: string) {
     if (this.ws) return;
     const wsUrl = this.baseUrl.replace(/^http/, "ws") + `/ws?address=${address}`;
-    this.ws = new WebSocket(wsUrl);
-    this.ws.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data as string);
-        this.messageListeners.forEach((listener) => listener(payload));
-      } catch (_e) {}
-    };
-    this.ws.onclose = () => {
-      this.ws = null;
-    };
+    const WS = (globalThis as unknown as { WebSocket: WSConstructor }).WebSocket;
+    if (!WS) return;
+    this.ws = new WS(wsUrl);
+    if (this.ws) {
+      this.ws.onmessage = (event: { data: string }) => {
+        try {
+          const payload = JSON.parse(event.data);
+          this.messageListeners.forEach((listener) => listener(payload));
+        } catch (_e) {}
+      };
+      this.ws.onclose = () => {
+        this.ws = null;
+      };
+    }
   }
 
   onMessage(listener: (payload: Record<string, unknown>) => void) {
@@ -82,7 +98,8 @@ export class RelayClient {
   }
 
   sendTypingStatus(recipient: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    const WS = (globalThis as unknown as { WebSocket: WSConstructor }).WebSocket;
+    if (this.ws && WS && this.ws.readyState === WS.OPEN) {
       this.ws.send(
         JSON.stringify({
           type: "typing_status",

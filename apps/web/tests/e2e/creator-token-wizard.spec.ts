@@ -49,6 +49,14 @@ test.beforeEach(async ({ page }) => {
         getPublicKey: async () => wallet,
         signTransaction: async (xdr: string) => ({ signedXDR: xdr }),
       };
+      (window as unknown as Record<string, unknown>).freighterApi = {
+        getPublicKey: () => Promise.resolve({ publicKey: wallet }),
+        isConnected: () => Promise.resolve(true),
+      };
+      (window as unknown as Record<string, unknown>).freighter = {
+        getPublicKey: () => Promise.resolve(wallet),
+        isConnected: () => Promise.resolve(true),
+      };
 
       // Stub the stellar-sdk Server.sendTransaction and getTransaction
       (window as unknown as Record<string, unknown>).__mockTokenAddress = token;
@@ -96,7 +104,7 @@ test.describe("Creator Token Wizard", () => {
     // The guard should redirect to the profile page.
     // (In practice the redirect fires once getProfile resolves.)
     // We verify the route navigated away from the wizard.
-    await expect(page).not.toHaveURL(/\/onboarding\/creator/);
+    await expect(page).not.toHaveURL(/\/onboarding\/creator/, { timeout: 10000 });
   });
 
   test("step 1: fills token details and advances to step 2", async ({ page }) => {

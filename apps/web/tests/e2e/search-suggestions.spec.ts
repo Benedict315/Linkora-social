@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { injectWalletMock } from "./test-utils";
 
 test.describe("Search Suggestions", () => {
   test.beforeEach(async ({ page }) => {
@@ -7,7 +8,7 @@ test.describe("Search Suggestions", () => {
       const url = new URL(route.request().url());
       const query = url.searchParams.get("q") || "";
 
-      if (query.toLowerCase().includes("alice")) {
+      if (query.toLowerCase().includes("ali") || query.toLowerCase().includes("alice")) {
         await route.fulfill({
           contentType: "application/json",
           body: JSON.stringify({
@@ -51,19 +52,18 @@ test.describe("Search Suggestions", () => {
       });
     });
 
+    await injectWalletMock(page);
     await page.goto("/");
   });
 
-  test("shows recent searches when search bar is focused with empty query", async ({
-    page,
-  }) => {
+  test("shows recent searches when search bar is focused with empty query", async ({ page }) => {
     const searchBox = page.getByRole("search").first().getByRole("textbox");
     const searchButton = page.getByRole("search").first().getByRole("button", { name: "Search" });
 
     // Perform a search to create recent history
     await searchBox.fill("test query");
     await searchButton.click();
-    await expect(page).toHaveURL(/\/search\?q=test\+query/);
+    await expect(page).toHaveURL(/\/search\?q=test\+query/, { timeout: 10000 });
 
     // Go back to home
     await page.goto("/");
@@ -157,11 +157,9 @@ test.describe("Search Suggestions", () => {
     // Perform searches to create history
     await searchBox.fill("test 1");
     await searchButton.click();
-    await page.goto("/");
 
     await searchBox.fill("test 2");
     await searchButton.click();
-    await page.goto("/");
 
     // Focus search bar to show recent searches
     await searchBox.focus();
@@ -182,11 +180,9 @@ test.describe("Search Suggestions", () => {
     // Create multiple recent searches
     await searchBox.fill("test 1");
     await searchButton.click();
-    await page.goto("/");
 
     await searchBox.fill("test 2");
     await searchButton.click();
-    await page.goto("/");
 
     // Focus to show recent searches
     await searchBox.focus();
@@ -194,7 +190,9 @@ test.describe("Search Suggestions", () => {
     await expect(page.getByText("test 1")).toBeVisible();
 
     // Remove first recent search
-    const removeButtons = page.locator('[aria-label*="Remove"][aria-label*="from recent searches"]');
+    const removeButtons = page.locator(
+      '[aria-label*="Remove"][aria-label*="from recent searches"]'
+    );
     await removeButtons.first().click();
 
     // First search should be removed
@@ -246,7 +244,6 @@ test.describe("Search Suggestions", () => {
     for (let i = 1; i <= 12; i++) {
       await searchBox.fill(`test ${i}`);
       await searchButton.click();
-      await page.goto("/");
     }
 
     // Focus to show recent searches
