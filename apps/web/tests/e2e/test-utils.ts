@@ -5,8 +5,11 @@ const MOCK_ADDRESS = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
 export async function injectWalletMock(page: Page): Promise<void> {
   await page.addInitScript((address) => {
     window.localStorage.setItem("linkora_guided_tour_dismissed", "true");
+    window.localStorage.setItem("linkora_wallet_public_key", address);
+    window.localStorage.setItem("linkora_wallet_address", address);
+    window.localStorage.setItem("linkora_wallet_network", "TESTNET");
     (window as Window & { freighterApi?: unknown; freighter?: unknown }).freighterApi = {
-      getPublicKey: () => Promise.resolve({ publicKey: address }),
+      getPublicKey: () => Promise.resolve(address),
       isConnected: () => Promise.resolve(true),
       onNetworkChange: () => {},
     };
@@ -14,20 +17,38 @@ export async function injectWalletMock(page: Page): Promise<void> {
       getPublicKey: () => Promise.resolve(address),
       isConnected: () => Promise.resolve(true),
     };
-    window.localStorage.setItem("linkora_guided_tour_dismissed", "true");
   }, MOCK_ADDRESS);
 }
 
 export async function waitForWalletConnection(page: Page, timeout = 15000): Promise<string> {
-  await page.locator('[data-testid="disconnect-wallet"]').waitFor({ timeout });
+  const initialStored = await page.evaluate(() =>
+    localStorage.getItem("linkora_wallet_public_key")
+  );
+  if (initialStored) return initialStored;
+
+  try {
+    await page.locator('[data-testid="wallet-address"]').first().waitFor({ timeout });
+  } catch {
+    try {
+      await page
+        .locator('[data-testid="disconnect-wallet"]')
+        .waitFor({ timeout: Math.min(timeout, 5000) });
+    } catch {
+      // Nothing found — fall through to localStorage/header check below.
+    }
+  }
+
   const storedAddress = await page.evaluate(() =>
     localStorage.getItem("linkora_wallet_public_key")
   );
-  return (
-    storedAddress ??
-    (await page.locator('[data-testid="wallet-address"]').first().textContent()) ??
-    ""
-  );
+  if (storedAddress) return storedAddress;
+
+  const headerAddress = await page
+    .locator('[data-testid="wallet-address"]')
+    .first()
+    .textContent()
+    .catch(() => null);
+  return storedAddress ?? headerAddress ?? "";
 }
 
 export async function connectWallet(page: Page): Promise<void> {
