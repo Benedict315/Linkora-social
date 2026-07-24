@@ -198,8 +198,6 @@ describe("BackfillCoordinator — circuit breaker", () => {
     ).rejects.toThrow(CircuitBreakerOpenError);
 
     // Second call: should throw immediately without calling the fetcher
-    const fetcher2 = jest.fn();
-    const coordinator2 = new BackfillCoordinator(config, fetcher2, noopSleep);
     // Manually set circuit open via the internal path
     (coordinator as unknown as { _status: string })._status = "circuit_open";
 
