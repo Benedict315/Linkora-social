@@ -1,6 +1,5 @@
 import React from "react";
 import Link from "next/link";
-import { LOGO_COLORS, LOGO_PATHS } from "@/lib/constants";
 import { LogoIcon } from "./LogoIcon";
 import "@/styles/logo.css";
 
@@ -49,7 +48,9 @@ export const Logo: React.FC<LogoProps> = ({
 
     if (variant === "white") {
       return (
-        <div className={`inline-flex items-center gap-2.5 ${animated ? "logo-animated" : ""} ${className}`}>
+        <div
+          className={`inline-flex items-center gap-2.5 ${animated ? "logo-animated" : ""} ${className}`}
+        >
           <LogoIcon size={size} variant="white" />
           <span
             className="font-sans font-semibold tracking-tight text-white"
@@ -63,7 +64,9 @@ export const Logo: React.FC<LogoProps> = ({
 
     if (variant === "mono") {
       return (
-        <div className={`inline-flex items-center gap-2.5 ${animated ? "logo-animated" : ""} ${className}`}>
+        <div
+          className={`inline-flex items-center gap-2.5 ${animated ? "logo-animated" : ""} ${className}`}
+        >
           <LogoIcon size={size} variant="mono" />
           <span
             className="font-sans font-semibold tracking-tight text-current"
@@ -77,7 +80,9 @@ export const Logo: React.FC<LogoProps> = ({
 
     // Default: 'full' variant
     return (
-      <div className={`inline-flex items-center gap-2.5 ${animated ? "logo-animated" : ""} ${className}`}>
+      <div
+        className={`inline-flex items-center gap-2.5 ${animated ? "logo-animated" : ""} ${className}`}
+      >
         <LogoIcon size={size} animated={animated} />
         <span
           className="font-sans font-semibold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-[#1E3A5F] to-[#6366F1] dark:from-white dark:to-violet-200"
