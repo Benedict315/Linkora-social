@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <GuidedTourProvider>
               <NotificationsProvider>
                 <NavBar />
-                <main id="main-content" tabIndex={-1} className="pb-16 md:pb-0">
+                <main id="main-content" tabIndex={-1} className="pb-safe md:pb-0">
                   {children}
                 </main>
                 <GuidedTour />
