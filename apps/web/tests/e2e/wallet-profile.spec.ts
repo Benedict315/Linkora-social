@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import {
   injectWalletMock,
   connectWallet,
+  disconnectWallet,
   waitForWalletConnection,
   navigateToProfile,
   MOCK_ADDRESS,
@@ -32,9 +33,8 @@ test.describe("Wallet Connection & Profile Registration", () => {
 
   test("disconnect wallet", async ({ page }) => {
     await connectWallet(page);
-    const disconnectButton = page.locator('[data-testid="disconnect-wallet"]').first();
-    await expect(disconnectButton).toBeVisible({ timeout: 10000 });
-    await disconnectButton.click();
+    await disconnectWallet(page);
+    // After disconnect the Connect button should reappear
     await expect(page.locator('[data-testid="connect-wallet"]').first()).toBeVisible({
       timeout: 10000,
     });
