@@ -49,21 +49,9 @@ export class RelayAuthError extends Error {
   }
 }
 
-interface WSInstance {
-  readyState: number;
-  send: (data: string) => void;
-  onmessage: ((e: { data: string }) => void) | null;
-  onclose: (() => void) | null;
-}
-
-interface WSConstructor {
-  new (url: string): WSInstance;
-  OPEN: number;
-}
-
 export class RelayClient {
   private baseUrl: string;
-  private ws: WSInstance | null = null;
+  private ws: WebSocket | null = null;
   private messageListeners: Set<(payload: Record<string, unknown>) => void> = new Set();
 
   constructor(baseUrl: string) {
@@ -94,8 +82,7 @@ export class RelayClient {
   }
 
   sendTypingStatus(recipient: string) {
-    const WS = (globalThis as unknown as { WebSocket: WSConstructor }).WebSocket;
-    if (this.ws && WS && this.ws.readyState === WS.OPEN) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(
         JSON.stringify({
           type: "typing_status",
