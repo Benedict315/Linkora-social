@@ -333,3 +333,8 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
+
+/* Mobile safe-area handling — clears the fixed BottomNav on notched devices */
+.pb-safe {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+}

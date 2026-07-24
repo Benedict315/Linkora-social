@@ -5,7 +5,7 @@
  * access to the plaintext content. Authentication is via Stellar signatures.
  */
 
-import { Keypair } from "@stellar/stellar-sdk";
+import { Keypair } from "@stellar/stellar-base";
 import { sha256 } from "@noble/hashes/sha256";
 
 export interface RelayMessage {
@@ -76,20 +76,16 @@ export class RelayClient {
   connectWs(address: string) {
     if (this.ws) return;
     const wsUrl = this.baseUrl.replace(/^http/, "ws") + `/ws?address=${address}`;
-    const WS = (globalThis as unknown as { WebSocket: WSConstructor }).WebSocket;
-    if (!WS) return;
-    this.ws = new WS(wsUrl);
-    if (this.ws) {
-      this.ws.onmessage = (event: { data: string }) => {
-        try {
-          const payload = JSON.parse(event.data);
-          this.messageListeners.forEach((listener) => listener(payload));
-        } catch (_e) {}
-      };
-      this.ws.onclose = () => {
-        this.ws = null;
-      };
-    }
+    this.ws = new WebSocket(wsUrl);
+    this.ws.onmessage = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data as string);
+        this.messageListeners.forEach((listener) => listener(payload));
+      } catch (_e) {}
+    };
+    this.ws.onclose = () => {
+      this.ws = null;
+    };
   }
 
   onMessage(listener: (payload: Record<string, unknown>) => void) {
