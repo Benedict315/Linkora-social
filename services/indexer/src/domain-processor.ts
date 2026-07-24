@@ -27,11 +27,7 @@ import {
 } from "./handlers/moderation";
 import { handleBlock, handleUnblock, handleDmKeyPublished } from "./handlers/user";
 import { handleProfileSet } from "./handlers/profile";
-import {
-  handlePoolCreated,
-  handlePoolDeposit,
-  handlePoolWithdraw,
-} from "./handlers/pool";
+import { handlePoolCreated, handlePoolDeposit, handlePoolWithdraw } from "./handlers/pool";
 import { Database } from "./db";
 import { dispatchNotificationForBusEvent } from "./notifications/events";
 import { scValToNative, xdr } from "@stellar/stellar-sdk";

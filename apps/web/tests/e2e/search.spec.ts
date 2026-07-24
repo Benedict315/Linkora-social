@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { injectWalletMock } from "./test-utils";
 
 test("search renders post and profile results from the NavBar", async ({ page }) => {
   page.on("request", (req) => console.log("REQ:", req.url()));
@@ -55,6 +56,7 @@ test("search renders post and profile results from the NavBar", async ({ page })
     await route.continue();
   });
 
+  await injectWalletMock(page);
   await page.goto("/");
 
   const searchInput = page.getByRole("search").first().locator("input");

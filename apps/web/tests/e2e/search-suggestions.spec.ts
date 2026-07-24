@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { injectWalletMock } from "./test-utils";
 
 const PROFILES_SEARCH_REGEX = /\/api\/profiles\/search/;
 
@@ -70,6 +71,7 @@ test.describe("Search Suggestions", () => {
       });
     });
 
+    await injectWalletMock(page);
     await page.goto("/");
   });
 
