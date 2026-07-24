@@ -14,6 +14,14 @@ import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistratio
 export const metadata: Metadata = {
   title: "Linkora",
   description: "Decentralised social on Stellar",
+  icons: {
+    icon: [
+      { url: "/logo/logo-icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", type: "image/x-icon" },
+    ],
+    shortcut: "/logo/logo-icon.svg",
+    apple: "/logo/logo-icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
