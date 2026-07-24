@@ -58,13 +58,11 @@ export function NavBar() {
   }, [theme]);
 
   const handleConnect = useCallback(async () => {
-    const hasFreighter =
-      typeof window !== "undefined" && !!(window as unknown as { freighter?: unknown }).freighter;
-    if (!hasFreighter) {
+    try {
+      await connect();
+    } catch {
       setShowFreighterBanner(true);
-      return;
     }
-    await connect();
   }, [connect]);
 
   return (
