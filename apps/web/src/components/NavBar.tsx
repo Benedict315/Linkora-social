@@ -8,6 +8,7 @@ import SearchBar from "@/components/SearchBar";
 import { BottomNav } from "@/components/mobile/BottomNav";
 import { useNotificationsContext } from "@/contexts/NotificationsContext";
 import { CreatePostModal } from "@/components/modals/CreatePostModal";
+import { WalletModal } from "@/components/modals/WalletModal";
 import { useKeyboardShortcutsContext } from "@/contexts/KeyboardShortcutsContext";
 import {
   getStoredThemePreference,
@@ -29,6 +30,7 @@ export function NavBar() {
   const { registerComposeHandler, unregisterComposeHandler, registerSearchRef } =
     useKeyboardShortcutsContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [showFreighterBanner, setShowFreighterBanner] = useState(false);
   const [theme, setTheme] = useState<ThemePreference>("light");
 
@@ -257,25 +259,15 @@ export function NavBar() {
                 </span>
               )}
 
-              {/* Address chip */}
-              <span
-                className="font-mono text-xs sm:text-sm text-[var(--foreground)] bg-[var(--muted)] border border-[var(--border)] rounded-lg px-2 sm:px-3 py-1.5 select-all"
+              {/* Address chip — opens WalletModal */}
+              <button
+                onClick={() => setIsWalletModalOpen(true)}
+                className="font-mono text-xs sm:text-sm text-[var(--foreground)] bg-[var(--muted)] border border-[var(--border)] rounded-lg px-2 sm:px-3 py-1.5 select-all cursor-pointer hover:border-violet-500/50 transition-colors"
                 title={address}
-                aria-label={`Connected address: ${address}`}
+                aria-label={`Connected address: ${address}. Click to view wallet details.`}
                 data-testid="wallet-address"
               >
                 {truncateAddress(address)}
-              </span>
-
-              {/* Disconnect */}
-              <button
-                onClick={disconnect}
-                className="rounded-lg border border-[var(--border)] px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-[var(--text-muted)] hover:border-red-500/60 hover:text-red-400 transition-colors"
-                aria-label="Disconnect wallet"
-                data-testid="disconnect-wallet"
-              >
-                <span className="hidden sm:inline">Disconnect</span>
-                <span className="inline sm:hidden">✕</span>
               </button>
             </>
           ) : (
@@ -296,6 +288,15 @@ export function NavBar() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         author={address}
+      />
+
+      {/* Wallet Modal */}
+      <WalletModal
+        isOpen={isWalletModalOpen}
+        onClose={() => setIsWalletModalOpen(false)}
+        address={address}
+        network={network}
+        onDisconnect={disconnect}
       />
 
       <BottomNav onCompose={() => setIsModalOpen(true)} />
