@@ -59,6 +59,53 @@ describe("ConnectionHealthMonitor", () => {
     });
   });
 
+  describe("retry metrics", () => {
+    const info = (over: Partial<import("../utils/retry").RetryAttemptInfo>) => ({
+      attempt: 1,
+      maxAttempts: 5,
+      delayMs: 100,
+      reason: "error" as const,
+      error: new Error("x"),
+      ...over,
+    });
+
+    it("starts healthy with zeroed counters", () => {
+      const monitor = new ConnectionHealthMonitor("https://rpc.example.com");
+      const m = monitor.getRetryMetrics();
+      expect(m).toMatchObject({
+        totalRetries: 0,
+        rateLimitedRetries: 0,
+        circuitOpenEvents: 0,
+        exhaustedEvents: 0,
+        healthy: true,
+      });
+    });
+
+    it("tallies retries by reason", () => {
+      const monitor = new ConnectionHealthMonitor("https://rpc.example.com");
+      monitor.recordRetry(info({ reason: "error" }));
+      monitor.recordRetry(info({ reason: "rate-limited", delayMs: 2000 }));
+      monitor.recordRetry(info({ reason: "exhausted", delayMs: 0 }));
+      const m = monitor.getRetryMetrics();
+      expect(m.totalRetries).toBe(2); // error + rate-limited
+      expect(m.rateLimitedRetries).toBe(1);
+      expect(m.exhaustedEvents).toBe(1);
+      expect(m.lastReason).toBe("exhausted");
+    });
+
+    it("goes unhealthy when the circuit opens and recovers on reset", () => {
+      const monitor = new ConnectionHealthMonitor("https://rpc.example.com");
+      monitor.recordRetry(info({ reason: "circuit-open", delayMs: 0 }));
+      const m = monitor.getRetryMetrics();
+      expect(m.circuitOpenEvents).toBe(1);
+      expect(m.healthy).toBe(false);
+
+      monitor.resetRetryMetrics();
+      expect(monitor.getRetryMetrics().healthy).toBe(true);
+      expect(monitor.getRetryMetrics().circuitOpenEvents).toBe(0);
+    });
+  });
+
   describe("periodic checks and status events", () => {
     it("emits 'connected' when RPC comes online", async () => {
       mockGetLatestLedger.mockResolvedValue({ sequence: 1 });
