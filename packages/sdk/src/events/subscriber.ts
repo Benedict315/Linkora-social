@@ -56,6 +56,27 @@ export class LinkoraEventSubscriber {
     this.pollIntervalMs = config.minPollIntervalMs ?? DEFAULT_MIN_POLL_INTERVAL_MS;
   }
 
+  /**
+   * Subscribe to specific contract events.
+   *
+   * @param handlers An object mapping event types to their handler functions.
+   * @returns A function that, when called, unsubscribes the provided handlers.
+   *
+   * @example
+   * ```ts
+   * const unsubscribe = subscriber.subscribe({
+   *   post_created: async (event) => {
+   *     console.log(`New post ${event.id} by ${event.author}`);
+   *   },
+   *   like: (event) => {
+   *     console.log(`User ${event.user} liked post ${event.post_id}`);
+   *   }
+   * });
+   *
+   * // Later, to remove these specific handlers:
+   * // unsubscribe();
+   * ```
+   */
   subscribe(handlers: LinkoraEventHandlers): () => void {
     this.handlers = { ...this.handlers, ...handlers };
     return () => {
@@ -65,6 +86,22 @@ export class LinkoraEventSubscriber {
     };
   }
 
+  /**
+   * Start fetching events from the RPC or WebSocket.
+   *
+   * @param fromCursor Optional cursor to start fetching from. If omitted, uses the stored cursor or startLedger.
+   * @returns A promise that resolves once the background loop starts.
+   *
+   * @example
+   * ```ts
+   * try {
+   *   await subscriber.start();
+   *   console.log("Started listening for events...");
+   * } catch (error) {
+   *   console.error("Failed to start subscriber:", error.message);
+   * }
+   * ```
+   */
   async start(fromCursor?: string): Promise<void> {
     if (this.running) return;
 
@@ -74,6 +111,18 @@ export class LinkoraEventSubscriber {
     this.loopPromise = this.config.webSocketUrl ? this.websocketLoop() : this.loop();
   }
 
+  /**
+   * Stop fetching events and clean up connections/timers.
+   *
+   * @returns A promise that resolves when the internal loops and connections have completely stopped.
+   *
+   * @example
+   * ```ts
+   * // Stop on application shutdown
+   * await subscriber.stop();
+   * console.log("Subscriber stopped.");
+   * ```
+   */
   async stop(): Promise<void> {
     this.stopRequested = true;
     this.running = false;

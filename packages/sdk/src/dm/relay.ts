@@ -1,12 +1,12 @@
 /**
  * HTTP client for the DM relay service.
- * 
+ *
  * The relay service stores and routes encrypted messages without ever having
  * access to the plaintext content. Authentication is via Stellar signatures.
  */
 
-import { Keypair } from '@stellar/stellar-sdk';
-import { sha256 } from '@noble/hashes/sha256';
+import { Keypair } from "@stellar/stellar-base";
+import { sha256 } from "@noble/hashes/sha256";
 
 export interface RelayMessage {
   sender: string;
@@ -45,15 +45,51 @@ export interface GetMessagesResponse {
 export class RelayAuthError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'RelayAuthError';
+    this.name = "RelayAuthError";
   }
 }
 
 export class RelayClient {
   private baseUrl: string;
+  private ws: WebSocket | null = null;
+  private messageListeners: Set<(payload: Record<string, unknown>) => void> = new Set();
 
   constructor(baseUrl: string) {
-    this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+    this.baseUrl = baseUrl.replace(/\/$/, ""); // Remove trailing slash
+  }
+
+  /**
+   * Connect to the real-time WebSocket for pushes.
+   */
+  connectWs(address: string) {
+    if (this.ws) return;
+    const wsUrl = this.baseUrl.replace(/^http/, "ws") + `/ws?address=${address}`;
+    this.ws = new WebSocket(wsUrl);
+    this.ws.onmessage = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data as string);
+        this.messageListeners.forEach((listener) => listener(payload));
+      } catch (_e) {}
+    };
+    this.ws.onclose = () => {
+      this.ws = null;
+    };
+  }
+
+  onMessage(listener: (payload: Record<string, unknown>) => void) {
+    this.messageListeners.add(listener);
+    return () => this.messageListeners.delete(listener);
+  }
+
+  sendTypingStatus(recipient: string) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(
+        JSON.stringify({
+          type: "typing_status",
+          recipient,
+        })
+      );
+    }
   }
 
   /**
@@ -64,7 +100,7 @@ export class RelayClient {
     const authData = senderKeypair.publicKey() + timestamp.toString();
     const hash = sha256(new TextEncoder().encode(authData));
     const signature = senderKeypair.sign(Buffer.from(hash));
-    return Buffer.from(signature).toString('hex');
+    return Buffer.from(signature).toString("hex");
   }
 
   /**
@@ -79,7 +115,7 @@ export class RelayClient {
   ): Promise<void> {
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = this.createAuthSignature(senderKeypair, timestamp);
-    const ciphertext_b64 = Buffer.from(ciphertext).toString('base64');
+    const ciphertext_b64 = Buffer.from(ciphertext).toString("base64");
 
     const request: SendMessageRequest = {
       sender: senderKeypair.publicKey(),
@@ -87,13 +123,13 @@ export class RelayClient {
       ciphertext_b64,
       message_index: messageIndex,
       timestamp,
-      signature
+      signature,
     };
 
     const response = await fetch(`${this.baseUrl}/messages`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(request),
     });
@@ -122,20 +158,18 @@ export class RelayClient {
     const params = new URLSearchParams({
       limit: limit.toString(),
     });
-    
+
     if (cursor) {
-      params.set('cursor', cursor);
+      params.set("cursor", cursor);
     }
 
-    const response = await fetch(
-      `${this.baseUrl}/messages/${conversationId}?${params}`
-    );
+    const response = await fetch(`${this.baseUrl}/messages/${conversationId}?${params}`);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch messages: ${response.status}`);
     }
 
-    return await response.json() as GetMessagesResponse;
+    return (await response.json()) as GetMessagesResponse;
   }
 
   /**
@@ -154,12 +188,12 @@ export class RelayClient {
    */
   async health(): Promise<{ status: string; timestamp: number }> {
     const response = await fetch(`${this.baseUrl}/health`);
-    
+
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.status}`);
     }
 
-    return await response.json() as { status: string; timestamp: number };
+    return (await response.json()) as { status: string; timestamp: number };
   }
 }
 
@@ -170,5 +204,5 @@ export class RelayClient {
 export function getConversationId(addressA: string, addressB: string): string {
   const sorted = [addressA, addressB].sort();
   const combined = sorted[0] + sorted[1];
-  return Buffer.from(sha256(new TextEncoder().encode(combined))).toString('hex');
+  return Buffer.from(sha256(new TextEncoder().encode(combined))).toString("hex");
 }

@@ -7,7 +7,9 @@
  * callback that is invoked if a later step fails.
  */
 
-import { NetworkError, SigningError } from "./errors";
+import { CircuitBreakerError, NetworkError, SigningError } from "./errors";
+import { resolveRetryConfig, type RetryConfig } from "./config";
+import { CircuitBreaker, withRetry, type RetryLogger } from "./utils/retry";
 
 export type TxStatus = "pending" | "submitted" | "confirmed" | "failed";
 
@@ -46,6 +48,28 @@ export interface TransactionQueueConfig {
   pollIntervalMs?: number;
   /** Maximum number of poll attempts before timing out (default 30). */
   maxPollAttempts?: number;
+  /**
+   * Retry / backoff overrides. Any field left unset falls back to the
+   * environment-derived defaults (see {@link resolveRetryConfig}).
+   */
+  retry?: Partial<RetryConfig>;
+  /**
+   * Structured-logging hook invoked on every retry decision. Wire this to a
+   * `ConnectionHealthMonitor.recordRetry` to surface retry telemetry.
+   */
+  logger?: RetryLogger;
+  /** Injectable RNG for the backoff jitter (defaults to `Math.random`). */
+  random?: () => number;
+}
+
+/**
+ * A submission failure is permanent (not worth retrying) when it carries a
+ * `retryable: false` marker in its error details — e.g. a transaction the RPC
+ * rejected outright with an `ERROR` status.
+ */
+function isRetryableSubmission(err: unknown): boolean {
+  const details = (err as { details?: { retryable?: boolean } } | null)?.details;
+  return details?.retryable !== false;
 }
 
 /**
@@ -67,21 +91,64 @@ export class TransactionQueue {
   private readonly rpc: RpcClient;
   private readonly pollIntervalMs: number;
   private readonly maxPollAttempts: number;
+  private readonly retryConfig: RetryConfig;
+  private readonly circuitBreaker: CircuitBreaker;
+  private readonly logger?: RetryLogger;
+  private readonly random: () => number;
 
   constructor(config: TransactionQueueConfig) {
     this.signer = config.signer;
     this.rpc = config.rpc;
     this.pollIntervalMs = config.pollIntervalMs ?? 2000;
     this.maxPollAttempts = config.maxPollAttempts ?? 30;
+    this.retryConfig = resolveRetryConfig(config.retry);
+    this.circuitBreaker = new CircuitBreaker(this.retryConfig.circuitBreakerThreshold);
+    this.logger = config.logger;
+    this.random = config.random ?? Math.random;
   }
 
-  /** Register a status-change listener. */
+  /** Current circuit-breaker state — `true` once the failure threshold is hit. */
+  get isCircuitOpen(): boolean {
+    return this.circuitBreaker.isOpen;
+  }
+
+  /**
+   * Register a status-change listener.
+   *
+   * @param event The event name to listen for (currently only "status").
+   * @param listener The callback function invoked on status changes.
+   * @returns The queue instance for chaining.
+   *
+   * @example
+   * ```ts
+   * queue.on("status", (e) => {
+   *   console.log(`Step ${e.index} status: ${e.status}`);
+   *   if (e.status === "failed") {
+   *     console.error(`Error: ${e.error}`);
+   *   }
+   * });
+   * ```
+   */
   on(event: "status", listener: TxStatusListener): this {
     this.listeners.push(listener);
     return this;
   }
 
-  /** Add a transaction step to the queue. */
+  /**
+   * Add a transaction step to the queue.
+   *
+   * @param xdr The base64-encoded transaction envelope XDR.
+   * @param rollback An optional callback to run if a subsequent step in the queue fails.
+   * @returns The queue instance for chaining.
+   *
+   * @example
+   * ```ts
+   * queue.enqueue(txOpXdr, async () => {
+   *   console.log("Rolling back step 0");
+   *   // Implement any necessary rollback logic here
+   * });
+   * ```
+   */
   enqueue(xdr: string, rollback?: QueueStep["rollback"]): this {
     this.steps.push({ xdr, rollback });
     return this;
@@ -90,6 +157,20 @@ export class TransactionQueue {
   /**
    * Execute all enqueued steps in order.
    * On failure of step N, rollbacks for steps 0…N-1 are called in reverse order.
+   *
+   * @throws {SigningError} If a transaction fails to sign.
+   * @throws {NetworkError} If submission or confirmation fails on the network.
+   *
+   * @example
+   * ```ts
+   * try {
+   *   await queue.run();
+   *   console.log("All transactions completed successfully!");
+   * } catch (error) {
+   *   console.error("Queue execution failed:", error.message);
+   *   // Rollbacks for previously successful steps have already been executed
+   * }
+   * ```
    */
   async run(): Promise<void> {
     const completed: number[] = [];
@@ -110,18 +191,34 @@ export class TransactionQueue {
 
       let hash: string;
       try {
-        const result = await this.rpc.sendTransaction(signedXdr);
-        if (result.status === "ERROR") {
-          throw new NetworkError(result.errorResultXdr ?? "sendTransaction returned ERROR", {
-            step: i,
-          });
-        }
+        const result = await withRetry(
+          async () => {
+            const r = await this.rpc.sendTransaction(signedXdr);
+            if (r.status === "ERROR") {
+              // Permanent rejection — mark non-retryable so we fail fast.
+              throw new NetworkError(r.errorResultXdr ?? "sendTransaction returned ERROR", {
+                step: i,
+                retryable: false,
+              });
+            }
+            return r;
+          },
+          {
+            config: this.retryConfig,
+            circuitBreaker: this.circuitBreaker,
+            isRetryable: isRetryableSubmission,
+            onRetry: this.logger,
+            sleep: (ms) => this.sleep(ms),
+            random: this.random,
+          }
+        );
         hash = result.hash;
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
         this.emit({ index: i, xdr: step.xdr, status: "failed", error });
         await this.runRollbacks(completed);
-        throw err instanceof NetworkError
+        // Surface circuit-breaker trips verbatim so callers can report unhealthy.
+        throw err instanceof CircuitBreakerError
           ? err
           : new NetworkError(`Step ${i} submission failed: ${error}`, { step: i }, err);
       }

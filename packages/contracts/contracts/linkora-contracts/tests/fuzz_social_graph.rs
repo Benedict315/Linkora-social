@@ -1,7 +1,6 @@
 #![cfg(test)]
 
 use proptest::prelude::*;
-use soroban_sdk::{Address, Env};
 
 // Property-based tests for social graph integrity
 // These tests verify that the follow/unfollow/block invariants hold

@@ -28,12 +28,15 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
 
       - name: Cache Rust build artefacts
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/contracts
+
+      - name: Install system dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libdbus-1-dev pkg-config libudev-dev libhidapi-dev
 
       - name: Install stellar-cli
         run: cargo install --locked stellar-cli --version 22.8.1

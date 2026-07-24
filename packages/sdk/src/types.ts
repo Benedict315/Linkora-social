@@ -58,7 +58,7 @@ export interface SimulationResult {
  *
  * @see https://stellar.github.io/js-stellar-base/Transaction.html
  */
-export inace TransactionLike {
+export interface TransactionLike {
   /**
    * Serialize the transaction to a base64-encoded XDR envelope string.
    * @param format Must be "base64" for Stellar network submission.
