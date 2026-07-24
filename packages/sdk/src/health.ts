@@ -1,4 +1,5 @@
 import * as rpc from "@stellar/stellar-sdk/rpc";
+import type { RetryAttemptInfo, RetryReason } from "./utils/retry";
 
 export type ConnectionStatus = "connected" | "disconnected";
 export type ConnectionStatusCallback = (status: ConnectionStatus) => void;
