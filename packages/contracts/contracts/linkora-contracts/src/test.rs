@@ -926,6 +926,22 @@ fn test_initialize_twice_panics() {
 }
 
 #[test]
+#[should_panic(expected = "already initialized")]
+fn test_double_initialization_fails() {
+    let env = Env::default();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let admin1 = Address::generate(&env);
+    let admin2 = Address::generate(&env);
+    let treasury = Address::generate(&env);
+
+    env.mock_all_auths();
+    client.initialize(&admin1, &treasury, &0);
+    client.initialize(&admin2, &treasury, &0); // should panic
+}
+
+#[test]
 #[should_panic]
 fn test_upgrade_by_admin_succeeds() {
     // upgrade() requires a WASM hash that exists in the ledger.
