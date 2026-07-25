@@ -4255,6 +4255,206 @@ fn test_gov_veto_insufficient_pool_signers_panics() {
     client.gov_veto(&single_signer, &pool_id, &proposal_id);
 }
 
+// ── Governance snapshot consistency (issue #880) ───────────────────────────────
+//
+// These tests verify that governance parameters (vote_window_ledgers, quorum,
+// quorum_decay_rate_bps) are snapshotted at proposal creation time. Changing
+// the global config after a proposal is created must NOT retroactively affect
+// the proposal's execution timing or quorum requirements.
+
+#[test]
+fn test_gov_snapshot_vote_window_immutable() {
+    // Create a proposal, then change the global vote_window config.
+    // The proposal must retain its original snapshotted vote_window.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_governance(&env);
+
+    let proposer = Address::generate(&env);
+    let proposal_id = client.gov_propose(&proposer, &GovParameter::FeeBps, &500, &None);
+
+    // Verify the proposal snapshotted the original vote_window (= 200)
+    let proposal = client.gov_get_proposal(&proposal_id);
+    assert_eq!(
+        proposal.vote_window_ledgers, 200,
+        "proposal must snapshot vote_window=200 at creation"
+    );
+
+    // Admin changes global vote_window to 10
+    client.gov_init_config(&admin, &60, &100, &10, &50, &30);
+    let new_config = client.gov_get_config();
+    assert_eq!(new_config.vote_window_ledgers, 10);
+
+    // The existing proposal's snapshotted vote_window must still be 200
+    let proposal_after = client.gov_get_proposal(&proposal_id);
+    assert_eq!(
+        proposal_after.vote_window_ledgers, 200,
+        "proposal must retain snapshotted vote_window=200 after config change"
+    );
+
+    // Vote deadline should use snapshotted value (200), not new config (10).
+    // Advance past new deadline (10) but within original deadline (200).
+    env.ledger().with_mut(|li| {
+        li.sequence_number += 50; // past 10, well within 200
+    });
+
+    // Voting should still be allowed because snapshotted window is 200.
+    // If the code incorrectly used the live config (10), this would panic.
+    let voter = Address::generate(&env);
+    client.gov_vote(&voter, &proposal_id, &true);
+
+    // Advance past original deadline
+    env.ledger().with_mut(|li| {
+        li.sequence_number += 200; // total 250 > 200
+    });
+
+    // Now vote should fail because original snapshotted window expired
+    let voter2 = Address::generate(&env);
+    let result = client.try_gov_vote(&voter2, &proposal_id, &true);
+    assert!(result.is_err(), "vote must fail after snapshotted window expired");
+}
+
+#[test]
+fn test_gov_snapshot_quorum_immutable() {
+    // Create a proposal, then change the global quorum config.
+    // The proposal must retain its original snapshotted quorum.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_governance(&env);
+
+    let proposer = Address::generate(&env);
+    let proposal_id = client.gov_propose(&proposer, &GovParameter::FeeBps, &500, &None);
+
+    // Verify the proposal snapshotted the original quorum (= 60)
+    let proposal = client.gov_get_proposal(&proposal_id);
+    assert_eq!(
+        proposal.quorum, 60,
+        "proposal must snapshot quorum=60 at creation"
+    );
+
+    // Admin changes global quorum to 90
+    client.gov_init_config(&admin, &90, &100, &200, &50, &30);
+    let new_config = client.gov_get_config();
+    assert_eq!(new_config.quorum, 90);
+
+    // The existing proposal's snapshotted quorum must still be 60
+    let proposal_after = client.gov_get_proposal(&proposal_id);
+    assert_eq!(
+        proposal_after.quorum, 60,
+        "proposal must retain snapshotted quorum=60 after config change"
+    );
+
+    // effective_quorum should use snapshotted quorum (60), not global (90)
+    let eff_q = client.effective_quorum(&proposal_id);
+    assert_eq!(
+        eff_q, 60,
+        "effective_quorum must use snapshotted quorum=60, not global quorum=90"
+    );
+}
+
+#[test]
+fn test_gov_snapshot_decay_rate_immutable() {
+    // Create a proposal, then change the global quorum_decay_rate_bps.
+    // The proposal must use its original snapshotted decay rate.
+    let env = Env::default();
+    env.mock_all_auths();
+    // Use custom setup to have a non-zero decay rate
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &treasury, &0);
+    // quorum=60, time_lock=100, vote_window=200, decay_rate=500 bps (5%/ledger), floor=30
+    client.gov_init_config(&admin, &60, &100, &200, &500, &30);
+
+    let proposer = Address::generate(&env);
+    let proposal_id = client.gov_propose(&proposer, &GovParameter::FeeBps, &500, &None);
+
+    // Verify snapshotted decay rate
+    let proposal = client.gov_get_proposal(&proposal_id);
+    assert_eq!(
+        proposal.quorum_decay_rate_bps, 500,
+        "proposal must snapshot decay_rate=500 at creation"
+    );
+
+    // Admin changes global decay rate to 0 (no decay)
+    client.gov_init_config(&admin, &60, &100, &200, &0, &30);
+
+    // Advance 100 ledgers
+    env.ledger().with_mut(|li| {
+        li.sequence_number += 100;
+    });
+
+    // effective_quorum should still decay using snapshotted rate (500 bps)
+    // decay = 100 * 500 / 10000 = 5 → effective = max(30, 60-5) = 55
+    let eff_q = client.effective_quorum(&proposal_id);
+    assert_eq!(
+        eff_q, 55,
+        "effective_quorum must decay with snapshotted rate=500, not global rate=0"
+    );
+}
+
+#[test]
+fn test_gov_snapshot_two_proposals_different_configs() {
+    // Create two proposals with different config snapshots.
+    // Both must execute correctly with their respective snapshotted values.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_governance(&env);
+
+    let proposer = Address::generate(&env);
+
+    // Proposal 1: created with original config (vote_window=200, quorum=60, decay=50)
+    let proposal_id_1 = client.gov_propose(&proposer, &GovParameter::FeeBps, &100, &None);
+    let p1 = client.gov_get_proposal(&proposal_id_1);
+    assert_eq!(p1.vote_window_ledgers, 200);
+    assert_eq!(p1.quorum, 60);
+    assert_eq!(p1.quorum_decay_rate_bps, 50);
+
+    // Admin changes config: vote_window=300, quorum=80, decay=100
+    client.gov_init_config(&admin, &80, &100, &300, &100, &30);
+
+    // Proposal 2: created with new config
+    let proposal_id_2 = client.gov_propose(&proposer, &GovParameter::FeeBps, &200, &None);
+    let p2 = client.gov_get_proposal(&proposal_id_2);
+    assert_eq!(p2.vote_window_ledgers, 300);
+    assert_eq!(p2.quorum, 80);
+    assert_eq!(p2.quorum_decay_rate_bps, 100);
+
+    // Proposal 1 must still have its original snapshotted values
+    let p1_after = client.gov_get_proposal(&proposal_id_1);
+    assert_eq!(p1_after.vote_window_ledgers, 200);
+    assert_eq!(p1_after.quorum, 60);
+    assert_eq!(p1_after.quorum_decay_rate_bps, 50);
+
+    // Vote on both proposals
+    let v1 = Address::generate(&env);
+    let v2 = Address::generate(&env);
+    client.gov_vote(&v1, &proposal_id_1, &true);
+    client.gov_vote(&v1, &proposal_id_2, &true);
+    client.gov_vote(&v2, &proposal_id_1, &true);
+    client.gov_vote(&v2, &proposal_id_2, &true);
+
+    // Advance past both proposals' time-locks
+    // Proposal 1: vote_end = 200, exec_after = 200 + 100 = 300
+    // Proposal 2: vote_end = 300, exec_after = 300 + 100 = 400
+    env.ledger().with_mut(|li| {
+        li.sequence_number += 400;
+    });
+
+    // Both should execute using their respective snapshots
+    client.gov_execute(&proposal_id_1);
+    client.gov_execute(&proposal_id_2);
+
+    let p1_exec = client.gov_get_proposal(&proposal_id_1);
+    let p2_exec = client.gov_get_proposal(&proposal_id_2);
+    assert_eq!(p1_exec.status, GovStatus::Executed);
+    assert_eq!(p2_exec.status, GovStatus::Executed);
+
+    // Fee should end up as the last executed proposal's value (200)
+    assert_eq!(client.get_fee_bps(), 200);
+}
+
 // ── delete_post removes ID from author index and get_post returns None ─────────
 
 #[test]

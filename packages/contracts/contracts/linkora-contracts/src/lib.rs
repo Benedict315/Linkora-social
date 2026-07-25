@@ -106,7 +106,6 @@ const TIP_COOLDOWN_LEDGERS: u32 = 17_280;
 // ── Pagination Limit ──────────────────────────────────────────────────────────
 
 const MAX_PAGE_LIMIT: u32 = 50;
-const MAX_PAGINATION_LIMIT: u32 = 50;
 
 // ── Data Types ────────────────────────────────────────────────────────────────
 
@@ -211,6 +210,9 @@ pub struct GovProposal {
     pub votes_against: u32,
     pub created_ledger: u32,
     pub time_lock_ledgers: u32,
+    pub vote_window_ledgers: u32,
+    pub quorum: u32,
+    pub quorum_decay_rate_bps: u32,
     pub status: GovStatus,
 }
 
@@ -1304,7 +1306,7 @@ impl LinkoraContract {
     pub fn get_following(env: Env, user: Address, offset: u32, limit: u32) -> Vec<Address> {
         validate_non_default_address(&env, "user", &user);
         assert!(
-            limit > 0 && limit <= MAX_PAGINATION_LIMIT,
+            limit > 0 && limit <= MAX_PAGE_LIMIT,
             "limit must be between 1 and 50"
         );
         Self::paginate_index(&env, &user, offset, limit, true)
@@ -1707,7 +1709,7 @@ impl LinkoraContract {
     pub fn get_posts_by_author(env: Env, author: Address, offset: u32, limit: u32) -> Vec<u64> {
         validate_non_default_address(&env, "author", &author);
         assert!(
-            limit > 0 && limit <= MAX_PAGINATION_LIMIT,
+            limit > 0 && limit <= MAX_PAGE_LIMIT,
             "limit must be between 1 and 50"
         );
 
@@ -2079,15 +2081,16 @@ impl LinkoraContract {
         }
 
         let initial_len = pool.admins.len();
-        let mut new_admins = Vec::new(&env);
-        for existing_admin in pool.admins.iter() {
-            if existing_admin != admin {
-                new_admins.push_back(existing_admin.clone());
+        let mut remove_idx: Option<u32> = None;
+        for (i, existing_admin) in pool.admins.iter().enumerate() {
+            if existing_admin == admin {
+                remove_idx = Some(i as u32);
+                break;
             }
         }
-        pool.admins = new_admins;
+        let idx = remove_idx.expect("admin not found");
+        pool.admins.remove(idx);
 
-        assert!(pool.admins.len() < initial_len, "admin not found");
         assert!(
             pool.threshold <= pool.admins.len(),
             "threshold unreachable after removal"
@@ -2328,6 +2331,9 @@ impl LinkoraContract {
             votes_against: 0,
             created_ledger: env.ledger().sequence(),
             time_lock_ledgers: config.time_lock_ledgers,
+            vote_window_ledgers: config.vote_window_ledgers,
+            quorum: config.quorum,
+            quorum_decay_rate_bps: config.quorum_decay_rate_bps,
             status: GovStatus::Active,
         };
 
@@ -2354,14 +2360,6 @@ impl LinkoraContract {
         validate_non_default_address(&env, "voter", &voter);
         require_with_error!(&env, proposal_id > 0, "proposal id must be positive");
 
-        let config_key = StorageKey::GovConfig;
-        let config: GovConfig = env
-            .storage()
-            .persistent()
-            .get(&config_key)
-            .expect("governance not configured");
-        Self::bump(&env, &config_key);
-
         let proposal_key = StorageKey::GovProposal(proposal_id);
         let mut proposal: GovProposal = env
             .storage()
@@ -2372,7 +2370,7 @@ impl LinkoraContract {
         assert!(proposal.status == GovStatus::Active, "proposal not active");
 
         let current_ledger = env.ledger().sequence();
-        let vote_deadline = proposal.created_ledger + config.vote_window_ledgers;
+        let vote_deadline = proposal.created_ledger + proposal.vote_window_ledgers;
         assert!(current_ledger <= vote_deadline, "vote window closed");
 
         let vote_key = StorageKey::GovVote(proposal_id, voter.clone());
@@ -2418,9 +2416,13 @@ impl LinkoraContract {
             .ledger()
             .sequence()
             .saturating_sub(proposal.created_ledger);
-        let decay = (elapsed as u64 * config.quorum_decay_rate_bps as u64 / 10_000) as u32;
-        let decayed_quorum = config.quorum.saturating_sub(decay);
+        let decay = (elapsed as u64 * proposal.quorum_decay_rate_bps as u64 / 10_000) as u32;
+        let decayed_quorum = proposal.quorum.saturating_sub(decay);
 
+        // NOTE: quorum_floor is intentionally read from live config, not snapshotted.
+        // It serves as a global safety minimum that should remain consistent across
+        // all proposals. Changing quorum_floor raises/lowers the floor uniformly,
+        // which only affects whether a proposal can pass, not its timing.
         if decayed_quorum < config.quorum_floor {
             config.quorum_floor
         } else {
@@ -2450,7 +2452,7 @@ impl LinkoraContract {
         assert!(proposal.status == GovStatus::Active, "proposal not active");
 
         let current_ledger = env.ledger().sequence();
-        let vote_end = proposal.created_ledger + config.vote_window_ledgers;
+        let vote_end = proposal.created_ledger + proposal.vote_window_ledgers;
         let execution_after = vote_end as u64 + proposal.time_lock_ledgers as u64;
         assert!(
             (current_ledger as u64) >= execution_after,
@@ -2533,14 +2535,6 @@ impl LinkoraContract {
         validate_address_list(&env, "signers", &signers);
         require_with_error!(&env, proposal_id > 0, "proposal id must be positive");
 
-        let config_key = StorageKey::GovConfig;
-        let config: GovConfig = env
-            .storage()
-            .persistent()
-            .get(&config_key)
-            .expect("governance not configured");
-        Self::bump(&env, &config_key);
-
         let proposal_key = StorageKey::GovProposal(proposal_id);
         let mut proposal: GovProposal = env
             .storage()
@@ -2551,8 +2545,8 @@ impl LinkoraContract {
         assert!(proposal.status == GovStatus::Active, "proposal not active");
 
         let current_ledger = env.ledger().sequence();
-        let vote_end = proposal.created_ledger + config.vote_window_ledgers;
-        let time_lock_end = vote_end + config.time_lock_ledgers;
+        let vote_end = proposal.created_ledger + proposal.vote_window_ledgers;
+        let time_lock_end = vote_end + proposal.time_lock_ledgers;
         assert!(
             current_ledger >= vote_end && current_ledger < time_lock_end,
             "veto only during time-lock window"
