@@ -4311,7 +4311,10 @@ fn test_gov_snapshot_vote_window_immutable() {
     // Now vote should fail because original snapshotted window expired
     let voter2 = Address::generate(&env);
     let result = client.try_gov_vote(&voter2, &proposal_id, &true);
-    assert!(result.is_err(), "vote must fail after snapshotted window expired");
+    assert!(
+        result.is_err(),
+        "vote must fail after snapshotted window expired"
+    );
 }
 
 #[test]
