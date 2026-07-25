@@ -106,7 +106,6 @@ const TIP_COOLDOWN_LEDGERS: u32 = 17_280;
 // ── Pagination Limit ──────────────────────────────────────────────────────────
 
 const MAX_PAGE_LIMIT: u32 = 50;
-const MAX_PAGINATION_LIMIT: u32 = 50;
 
 // ── Data Types ────────────────────────────────────────────────────────────────
 
@@ -1304,7 +1303,7 @@ impl LinkoraContract {
     pub fn get_following(env: Env, user: Address, offset: u32, limit: u32) -> Vec<Address> {
         validate_non_default_address(&env, "user", &user);
         assert!(
-            limit > 0 && limit <= MAX_PAGINATION_LIMIT,
+            limit > 0 && limit <= MAX_PAGE_LIMIT,
             "limit must be between 1 and 50"
         );
         Self::paginate_index(&env, &user, offset, limit, true)
@@ -1707,7 +1706,7 @@ impl LinkoraContract {
     pub fn get_posts_by_author(env: Env, author: Address, offset: u32, limit: u32) -> Vec<u64> {
         validate_non_default_address(&env, "author", &author);
         assert!(
-            limit > 0 && limit <= MAX_PAGINATION_LIMIT,
+            limit > 0 && limit <= MAX_PAGE_LIMIT,
             "limit must be between 1 and 50"
         );
 
@@ -2079,15 +2078,16 @@ impl LinkoraContract {
         }
 
         let initial_len = pool.admins.len();
-        let mut new_admins = Vec::new(&env);
-        for existing_admin in pool.admins.iter() {
-            if existing_admin != admin {
-                new_admins.push_back(existing_admin.clone());
+        let mut remove_idx: Option<u32> = None;
+        for (i, existing_admin) in pool.admins.iter().enumerate() {
+            if existing_admin == admin {
+                remove_idx = Some(i as u32);
+                break;
             }
         }
-        pool.admins = new_admins;
+        let idx = remove_idx.expect("admin not found");
+        pool.admins.remove(idx);
 
-        assert!(pool.admins.len() < initial_len, "admin not found");
         assert!(
             pool.threshold <= pool.admins.len(),
             "threshold unreachable after removal"
