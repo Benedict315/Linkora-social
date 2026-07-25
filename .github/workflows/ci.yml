@@ -7,7 +7,30 @@ on:
   pull_request:
 
 jobs:
-  test:
+  lint:
+    name: Lint TypeScript Packages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linter
+        run: pnpm lint
+
+  unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
     # Intentionally separate from integration.yml, which requires Docker and stellar-cli.
@@ -45,6 +68,11 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy -- -D warnings
+
+      - name: Build contract wasm
+        run: |
+          cargo build --target wasm32v1-none --release -p linkora-contracts
+          cp target/wasm32v1-none/release/linkora_contracts.wasm contracts/linkora-contracts/linkora_contracts.wasm
 
       - name: Run unit tests
         run: cargo test

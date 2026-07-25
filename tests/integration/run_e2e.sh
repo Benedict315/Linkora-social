@@ -55,8 +55,17 @@ fi
 echo "[1/8] Starting local Stellar sandbox container..."
 stellar --config-dir "$CFG_DIR" container start local --name "$CONTAINER_NAME"
 
-# Wait briefly for RPC/friendbot readiness.
-sleep 4
+# Wait for friendbot to be reachable (up to 90 s).
+# Accept any HTTP response — friendbot returns 400 without an addr param, which is fine.
+echo "  Waiting for sandbox to be ready..."
+for i in $(seq 1 90); do
+  status=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/friendbot" 2>/dev/null || true)
+  if [[ -n "$status" && "$status" != "000" ]]; then
+    echo "  Sandbox ready (friendbot HTTP $status)"
+    break
+  fi
+  sleep 1
+done
 
 echo "[2/8] Generating funded identities..."
 for name in linkora_alice linkora_bob linkora_issuer; do
@@ -134,7 +143,7 @@ stellar --config-dir "$CFG_DIR" contract invoke \
   --network "$NETWORK" \
   --source-account linkora_alice \
   --id "$CONTRACT_ID" \
-  -- create_pool --admin "$ALICE_ADDR" --pool-id community --token "$TOKEN_ID" --admins "[\"$ALICE_ADDR\"]" --threshold 1 >/dev/null
+  -- create_pool --admin "$ALICE_ADDR" --pool-id community --token "$TOKEN_ID" --initial-admins "[\"$ALICE_ADDR\"]" --threshold 1 >/dev/null
 
 stellar --config-dir "$CFG_DIR" contract invoke \
   --network "$NETWORK" \
@@ -154,7 +163,7 @@ FOLLOWING="$(stellar --config-dir "$CFG_DIR" contract invoke \
   --source-account linkora_bob \
   --id "$CONTRACT_ID" \
   --send no \
-  -- get_following --user "$BOB_ADDR")"
+  -- get_following --user "$BOB_ADDR" --offset 0 --limit 10)"
 
 assert_contains "bob follows alice" "$ALICE_ADDR" "$FOLLOWING"
 

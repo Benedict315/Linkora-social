@@ -1,0 +1,37 @@
+name: Mobile Build Check
+
+on:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-check.yml"
+
+jobs:
+  mobile-check:
+    name: Type Check & Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript type check
+        working-directory: apps/mobile
+        run: pnpm exec tsc --noEmit
+
+      - name: Jest test suite
+        working-directory: apps/mobile
+        run: pnpm exec jest --forceExit --passWithNoTests
+        env:
+          CI: true
