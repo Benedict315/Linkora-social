@@ -2751,7 +2751,26 @@ impl LinkoraContract {
         .publish(&env);
     }
 
+<<<<<<< Updated upstream
     pub fn report_post(
+=======
+    /// Verifies a Merkle proof against a user's stored credential root.
+    ///
+    /// # Arguments
+    /// * `user` - The user whose credential root to verify against
+    /// * `leaf` - The leaf value being proven (32 bytes)
+    /// * `proof` - Vector of sibling hashes forming the Merkle proof path
+    /// * `nullifier` - Unique identifier to prevent replay attacks (32 bytes)
+    ///
+    /// # Returns
+    /// * `true` if the proof is valid and nullifier hasn't been used
+    /// * `false` if the proof is invalid
+    ///
+    /// # Panics
+    /// * If the user has no credential root set
+    /// * If the nullifier has already been used (replay attack)
+    pub fn verify_credential(
+>>>>>>> Stashed changes
         env: Env,
         reporter: Address,
         post_id: u64,
@@ -2817,6 +2836,7 @@ impl LinkoraContract {
         .publish(&env);
     }
 
+<<<<<<< Updated upstream
     pub fn get_rent_expiry(env: Env, user: Address) -> u32 {
         validate_non_default_address(&env, "user", &user);
         #[cfg(test)]
@@ -3139,12 +3159,23 @@ impl LinkoraContract {
         require_with_error!(&env, post_id > 0, "post id must be positive");
         let key = StorageKey::Report(post_id, reporter);
         let result: Option<Report> = env.storage().persistent().get(&key);
+=======
+    /// Retrieves the stored Merkle credential root for a user.
+    ///
+    /// # Returns
+    /// * `Some(BytesN<32>)` if the user has a credential root set
+    /// * `None` if the user has no credential root
+    pub fn get_credential_root(env: Env, user: Address) -> Option<BytesN<32>> {
+        let key = (CREDENTIAL_ROOTS, user.clone());
+        let result: Option<BytesN<32>> = env.storage().persistent().get(&key);
+>>>>>>> Stashed changes
         if result.is_some() {
             Self::bump(&env, &key);
         }
         result
     }
 
+<<<<<<< Updated upstream
     pub fn get_report_count(env: Env, post_id: u64) -> u32 {
         require_with_error!(&env, post_id > 0, "post id must be positive");
         let key = StorageKey::ReportCount(post_id);
@@ -3153,6 +3184,33 @@ impl LinkoraContract {
             Self::bump(&env, &key);
         }
         result
+=======
+    /// Computes the Merkle root from a leaf and proof path.
+    /// This is a helper function for verify_credential.
+    /// Uses a position-dependent hash to ensure proof order matters.
+    #[allow(clippy::needless_borrow)]
+    fn compute_merkle_root(leaf: &BytesN<32>, proof: &Vec<BytesN<32>>) -> BytesN<32> {
+        let env = leaf.env();
+        let mut current = leaf.clone();
+        let mut index = 0u8;
+
+        for sibling in proof.iter() {
+            // Position-dependent hash: add current, sibling, and index
+            // This ensures (a, b) at position 0 != (b, a) at position 0
+            let mut result = [0u8; 32];
+            let current_arr = current.to_array();
+            let sibling_arr = sibling.to_array();
+            for i in 0..32 {
+                result[i] = current_arr[i]
+                    .wrapping_add(sibling_arr[i])
+                    .wrapping_add(index);
+            }
+            current = BytesN::from_array(&env, &result);
+            index = index.wrapping_add(1);
+        }
+
+        current
+>>>>>>> Stashed changes
     }
 
     // ── Internal Helpers ──────────────────────────────────────────────────────

@@ -84,7 +84,11 @@ fn test_fuzz_property_merkle_root_computation() {
     for i in 1..=5u8 {
         let nullifier = BytesN::from_array(&env, &[i + 100; 32]);
         let result = client.verify_credential(&user, &leaf, &proof, &nullifier);
-        assert!(result, "deterministic verification should succeed on iteration {}", i);
+        assert!(
+            result,
+            "deterministic verification should succeed on iteration {}",
+            i
+        );
     }
 }
 
@@ -114,7 +118,6 @@ fn test_fuzz_property_nullifier_uniqueness_across_users() {
     assert!(client.verify_credential(&user3, &leaf, &proof, &nullifier));
 }
 
-
 #[test]
 fn test_fuzz_property_multiple_proofs_same_root() {
     let env = Env::default();
@@ -138,6 +141,10 @@ fn test_fuzz_property_multiple_proofs_same_root() {
     for i in 1..=10u8 {
         let nullifier = BytesN::from_array(&env, &[i; 32]);
         let result = client.verify_credential(&user, &leaf, &proof, &nullifier);
-        assert!(result, "same proof should verify with different nullifier {}", i);
+        assert!(
+            result,
+            "same proof should verify with different nullifier {}",
+            i
+        );
     }
 }

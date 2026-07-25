@@ -6770,7 +6770,10 @@ fn test_get_credential_root_none_when_not_set() {
     let user = Address::generate(&env);
 
     let retrieved = client.get_credential_root(&user);
-    assert!(retrieved.is_none(), "should return None for user with no root");
+    assert!(
+        retrieved.is_none(),
+        "should return None for user with no root"
+    );
 }
 
 #[test]
@@ -6780,20 +6783,20 @@ fn test_verify_credential_valid_proof() {
     let (client, _, _) = setup_contract(&env);
 
     let user = Address::generate(&env);
-    
+
     // Create a simple Merkle tree with one leaf
     // For a single leaf, the root is just the hash of the leaf
     let leaf = BytesN::from_array(&env, &[1u8; 32]);
     let proof: Vec<BytesN<32>> = vec![&env];
-    
+
     // Compute the expected root (hash of leaf with empty proof = leaf itself)
     let root = leaf.clone();
-    
+
     client.update_credential_root(&user, &root);
-    
+
     let nullifier = BytesN::from_array(&env, &[10u8; 32]);
     let result = client.verify_credential(&user, &leaf, &proof, &nullifier);
-    
+
     assert!(result, "valid proof should return true");
 }
 
@@ -6804,16 +6807,16 @@ fn test_verify_credential_invalid_proof_wrong_leaf() {
     let (client, _, _) = setup_contract(&env);
 
     let user = Address::generate(&env);
-    
+
     let root = BytesN::from_array(&env, &[1u8; 32]);
     let wrong_leaf = BytesN::from_array(&env, &[2u8; 32]);
     let proof: Vec<BytesN<32>> = vec![&env];
-    
+
     client.update_credential_root(&user, &root);
-    
+
     let nullifier = BytesN::from_array(&env, &[10u8; 32]);
     let result = client.verify_credential(&user, &wrong_leaf, &proof, &nullifier);
-    
+
     assert!(!result, "invalid proof with wrong leaf should return false");
 }
 
@@ -6824,17 +6827,17 @@ fn test_verify_credential_invalid_proof_wrong_path() {
     let (client, _, _) = setup_contract(&env);
 
     let user = Address::generate(&env);
-    
+
     let leaf = BytesN::from_array(&env, &[1u8; 32]);
     let root = leaf.clone();
     let wrong_sibling = BytesN::from_array(&env, &[99u8; 32]);
     let proof = vec![&env, wrong_sibling];
-    
+
     client.update_credential_root(&user, &root);
-    
+
     let nullifier = BytesN::from_array(&env, &[10u8; 32]);
     let result = client.verify_credential(&user, &leaf, &proof, &nullifier);
-    
+
     assert!(!result, "invalid proof with wrong path should return false");
 }
 
@@ -6849,7 +6852,7 @@ fn test_verify_credential_panics_no_root() {
     let leaf = BytesN::from_array(&env, &[1u8; 32]);
     let proof: Vec<BytesN<32>> = vec![&env];
     let nullifier = BytesN::from_array(&env, &[10u8; 32]);
-    
+
     // Try to verify without setting a root
     client.verify_credential(&user, &leaf, &proof, &nullifier);
 }
@@ -6862,18 +6865,18 @@ fn test_verify_credential_nullifier_replay_rejected() {
     let (client, _, _) = setup_contract(&env);
 
     let user = Address::generate(&env);
-    
+
     let leaf = BytesN::from_array(&env, &[1u8; 32]);
     let root = leaf.clone();
     let proof: Vec<BytesN<32>> = vec![&env];
     let nullifier = BytesN::from_array(&env, &[10u8; 32]);
-    
+
     client.update_credential_root(&user, &root);
-    
+
     // First verification should succeed
     let result1 = client.verify_credential(&user, &leaf, &proof, &nullifier);
     assert!(result1);
-    
+
     // Second verification with same nullifier should panic
     client.verify_credential(&user, &leaf, &proof, &nullifier);
 }
@@ -6885,19 +6888,19 @@ fn test_verify_credential_different_nullifiers_accepted() {
     let (client, _, _) = setup_contract(&env);
 
     let user = Address::generate(&env);
-    
+
     let leaf = BytesN::from_array(&env, &[1u8; 32]);
     let root = leaf.clone();
     let proof: Vec<BytesN<32>> = vec![&env];
     let nullifier1 = BytesN::from_array(&env, &[10u8; 32]);
     let nullifier2 = BytesN::from_array(&env, &[20u8; 32]);
-    
+
     client.update_credential_root(&user, &root);
-    
+
     // Both verifications with different nullifiers should succeed
     let result1 = client.verify_credential(&user, &leaf, &proof, &nullifier1);
     assert!(result1);
-    
+
     let result2 = client.verify_credential(&user, &leaf, &proof, &nullifier2);
     assert!(result2);
 }
@@ -6909,17 +6912,17 @@ fn test_verify_credential_empty_proof() {
     let (client, _, _) = setup_contract(&env);
 
     let user = Address::generate(&env);
-    
+
     // For empty proof, root should equal leaf
     let leaf = BytesN::from_array(&env, &[1u8; 32]);
     let root = leaf.clone();
     let proof: Vec<BytesN<32>> = vec![&env];
-    
+
     client.update_credential_root(&user, &root);
-    
+
     let nullifier = BytesN::from_array(&env, &[10u8; 32]);
     let result = client.verify_credential(&user, &leaf, &proof, &nullifier);
-    
+
     assert!(result, "empty proof should work when root equals leaf");
 }
 
@@ -6930,18 +6933,18 @@ fn test_verify_credential_max_depth_proof() {
     let (client, _, _) = setup_contract(&env);
 
     let user = Address::generate(&env);
-    
+
     // Create a proof with multiple levels
     let leaf = BytesN::from_array(&env, &[1u8; 32]);
     let sibling1 = BytesN::from_array(&env, &[2u8; 32]);
     let sibling2 = BytesN::from_array(&env, &[3u8; 32]);
     let sibling3 = BytesN::from_array(&env, &[4u8; 32]);
     let proof = vec![&env, sibling1.clone(), sibling2.clone(), sibling3.clone()];
-    
+
     // Compute the expected root using position-dependent hash
     let mut current = leaf.clone();
     let mut index = 0u8;
-    
+
     // Add sibling1 with index 0
     let mut result1 = [0u8; 32];
     let current_arr = current.to_array();
@@ -6951,7 +6954,7 @@ fn test_verify_credential_max_depth_proof() {
     }
     current = BytesN::from_array(&env, &result1);
     index = index.wrapping_add(1);
-    
+
     // Add sibling2 with index 1
     let mut result2 = [0u8; 32];
     let current_arr2 = current.to_array();
@@ -6961,7 +6964,7 @@ fn test_verify_credential_max_depth_proof() {
     }
     current = BytesN::from_array(&env, &result2);
     index = index.wrapping_add(1);
-    
+
     // Add sibling3 with index 2
     let mut result3 = [0u8; 32];
     let current_arr3 = current.to_array();
@@ -6970,11 +6973,11 @@ fn test_verify_credential_max_depth_proof() {
         result3[i] = current_arr3[i].wrapping_add(s3_arr[i]).wrapping_add(index);
     }
     let root = BytesN::from_array(&env, &result3);
-    
+
     client.update_credential_root(&user, &root);
-    
+
     let nullifier = BytesN::from_array(&env, &[10u8; 32]);
     let result = client.verify_credential(&user, &leaf, &proof, &nullifier);
-    
+
     assert!(result, "max depth proof should verify correctly");
 }
